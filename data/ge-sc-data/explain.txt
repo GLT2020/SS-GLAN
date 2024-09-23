@@ -1,0 +1,54 @@
+文件夹解释：总共7种漏洞类型======================
+每个类型里的文件夹解释：
+buggy:装有部分原始漏洞合约文件
+curated：装有部分原始漏洞合约文件
+buggy_curated：装有全部原始漏洞合约文件
+clean_xx_buggy_curated_0:带有所有原始无漏洞和有漏洞的合约文件
+all_clean:将clean_xx_buggy_curated_0中所有文件删去了注释和空行的合约文件
+all_cfg_graph:依据all_clean生成的cfg图文件
+all_cg_graph:依据all_clean生成的cg图文件
+all_mixed_graph:依据all_clean生成的cfg和cg融合图文件
+
+json文件解释==================================
+all.json: 所有原始的漏洞标签和无漏洞的内容
+buggy_curated.json: 所有原始的漏洞标签的内容
+以下文件：是对all_clean文件夹的文件做的。即装有无注释、无空行的漏洞标签和无漏洞的内容
+preprocess_all.json: 将原始文件的注释和空行删去了，并调整了漏洞标签对应的位置
+craft_preprocess_all.json: 手动调整了preprocess_all文件中的漏洞标签，使其更精确
+
+LineVectorList.json: 在删除了注释和空行的基础上.使用预训练的codebert将每行代码转为向量
+typelist.json: 在删除了注释和空行的基础上。获取了每行代码的类型。
+
+
+problem record:
+0x0ef23ae0a27130999bf9d886e9598ff355ecf323.sol，原版本0.4.20编译有问题，更换为0.4.25
+0x0f35d82007119dc339af57b29dc8ae794b92926c.sol，原版本0.4.13编译有问题，更换为0.4.25
+
+使用datapreprocess.py 生成preprocess_all.json文件时，由于部分行级标签会打到空行或注释行上，
+所以需要运行del_all_json_label_with_blank函数
+
+注意：buggy_35 由于正则的问题，第二行出现问题。需要手动恢复。拿access_control/all_clean/buggy_35中的copy一下就好
+    library SafeMath {
+
+cfg,cf,mixed_graph使用preprocess文件夹中的文件进行生成。
+
+
+数据预处理操作顺序：
+1.  运行./data/ge-sc-data/datapreprocess.py main函数的以下五个函数。
+    get_buggy_curated_json(), check_buggy_curated_json('XXX'), get_all_json(),
+    del_all_json_label_with_blank(),preprocess_all_file()
+    生成buggy_curated.json, all.json, preprocess_all.json
+
+2.  运行./preprocess/LinTypePreprocess.mjs 文件生成 typeList.json (由于第一部步骤中生成的正则问题需要手动回复buggy_35的错误)
+
+3.  运行./preprocess/LineVectorPreprocess.py 文件生成 LinVectorList.json文件
+
+4.  在漏洞类别文件夹下创建 all_cfg_graph, all_cg_graph, all_mixed_graph文件夹
+
+5.  依次运行./preprocess/ControlFlowGraphGenerator.py,
+    CallGraphGenerator.py, combination_call_graph_and_control_flow_graph_helper.py
+    获取cfg, cg, cfg_cg混合图
+
+6.  运行./TrainPCA.py 文件训练对应漏洞楼板的PCA模型。
+
+7.  运行main.py
