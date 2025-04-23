@@ -14,7 +14,6 @@ use_cuda = 'cuda' if torch.cuda.is_available() else 'cpu'
 device = torch.device(use_cuda)
 
 LR = 0.00001
-# LR = 0.0001
 
 
 class FocalLoss(nn.Module):
@@ -81,9 +80,9 @@ class GATModel(nn.Module):
         gnn_x = self.conv3(g, gnn_x).mean(1)
         g.ndata['h'] = gnn_x
 
-        # 拆解回[batch, num_nodes, node_features]
-        unbatched_graphs = dgl.unbatch(g)
-        node_features = [i.ndata['h'] for i in unbatched_graphs]
+        # # 拆解回[batch, num_nodes, node_features]
+        # unbatched_graphs = dgl.unbatch(g)
+        # node_features = [i.ndata['h'] for i in unbatched_graphs]
 
         # # Pad the node features to ensure the shape [batch_size, max_num_nodes, nodes_features]
         # max_num_nodes = max(f.shape[0] for f in node_features)
@@ -98,18 +97,17 @@ class GATModel(nn.Module):
 
         return node_features
 
-class CustomGraphLSTM(nn.Module):
+class CustomGraphGRU(nn.Module):
     def __init__(self, input_dim, model_dim, num_heads, num_layers, num_classes, dropout=0.1):
-        super(CustomGraphLSTM, self).__init__()
+        super(CustomGraphGRU, self).__init__()
         self.embedding = nn.Linear(input_dim, model_dim)
         self.gat_layer = GATModel(input_dim=input_dim, hidden_dim=model_dim, num_heads=num_heads).to(device)
-        # self.lstm = nn.LSTM(input_size=model_dim, hidden_size=model_dim, num_layers=num_layers,
-        #                     batch_first=True, bidirectional=True, dropout=dropout)
+
         # self.cross_attn_layer = CrossAttentionLayer(model_dim * 2, num_heads)
         # self.classifier = nn.Linear(model_dim * 2, num_classes)
 
-        self.lstm = nn.LSTM(input_size=model_dim, hidden_size=model_dim, num_layers=num_layers,
-                            batch_first=True, bidirectional=False, dropout=dropout)
+        self.gru = nn.GRU(input_size=model_dim, hidden_size=model_dim, num_layers=num_layers,
+                          batch_first=True, bidirectional=False, dropout=dropout)
         self.cross_attn_layer = CrossAttentionLayer(model_dim, num_heads)
 
         self.pooling = nn.AdaptiveAvgPool1d(1)
@@ -118,8 +116,8 @@ class CustomGraphLSTM(nn.Module):
     def forward(self, src, src_mask, graph, graph_feat):
         src = self.embedding(src)
         graph_feat = self.gat_layer(graph, graph_feat)
-        lstm_out, _ = self.lstm(src)
-        src = self.cross_attn_layer(lstm_out, graph_feat)
+        gru_out, _ = self.gru(src)
+        src = self.cross_attn_layer(gru_out, graph_feat)
 
         # Apply global average pooling
         src = src.permute(0, 2, 1)  # Change shape to (batch_size, model_dim, seq_len)
@@ -130,9 +128,9 @@ class CustomGraphLSTM(nn.Module):
 
         return output
 
-class GraphLSTMContractModel():
-    def __init__(self, input_dim, model_dim, class_weight, num_classes=2, num_heads=2, num_layer=6):
-        self.model = CustomGraphLSTM(input_dim=input_dim, model_dim=model_dim, num_classes=num_classes,
+class GraphGRUContractModel():
+    def __init__(self, input_dim, model_dim, class_weight, num_classes=2, num_heads=8, num_layer=6):
+        self.model = CustomGraphGRU(input_dim=input_dim, model_dim=model_dim, num_classes=num_classes,
                                        num_heads=num_heads, num_layers=num_layer).to(device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=LR)
 
@@ -165,7 +163,7 @@ class GraphLSTMContractModel():
 
                 epoch_loss += loss.item()
 
-            # print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(dataloader)}")
+            print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(dataloader)}")
             if test_dataloader and epoch % 10 ==0:
                 val_loss = self.test(test_dataloader)
 

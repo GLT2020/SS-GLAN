@@ -13,8 +13,8 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 use_cuda = 'cuda' if torch.cuda.is_available() else 'cpu'
 device = torch.device(use_cuda)
 
-LR = 0.00001
-# LR = 0.0001
+# LR = 0.00001
+LR = 0.0001
 
 
 class FocalLoss(nn.Module):
@@ -80,63 +80,39 @@ class GATModel(nn.Module):
         gnn_x = self.conv2(g, gnn_x).flatten(1)
         gnn_x = self.conv3(g, gnn_x).mean(1)
         g.ndata['h'] = gnn_x
-
-        # 拆解回[batch, num_nodes, node_features]
-        unbatched_graphs = dgl.unbatch(g)
-        node_features = [i.ndata['h'] for i in unbatched_graphs]
-
-        # # Pad the node features to ensure the shape [batch_size, max_num_nodes, nodes_features]
-        # max_num_nodes = max(f.shape[0] for f in node_features)
-        # padded_features = [torch.cat([f, torch.zeros(max_num_nodes - f.shape[0], f.shape[1]).to(device)], dim=0) for f in
-        #                    node_features]
-        # node_features = torch.stack(padded_features)
-
-        # 使用平均值代表一个图
         unbatched_graphs = dgl.unbatch(g)
         node_features = [dgl.mean_nodes(graph, 'h') for graph in unbatched_graphs]
         node_features = torch.stack(node_features)
-
         return node_features
 
-class CustomGraphLSTM(nn.Module):
+class CustomGraphGRU(nn.Module):
     def __init__(self, input_dim, model_dim, num_heads, num_layers, num_classes, dropout=0.1):
-        super(CustomGraphLSTM, self).__init__()
+        super(CustomGraphGRU, self).__init__()
         self.embedding = nn.Linear(input_dim, model_dim)
         self.gat_layer = GATModel(input_dim=input_dim, hidden_dim=model_dim, num_heads=num_heads).to(device)
-        # self.lstm = nn.LSTM(input_size=model_dim, hidden_size=model_dim, num_layers=num_layers,
-        #                     batch_first=True, bidirectional=True, dropout=dropout)
+
         # self.cross_attn_layer = CrossAttentionLayer(model_dim * 2, num_heads)
         # self.classifier = nn.Linear(model_dim * 2, num_classes)
 
-        self.lstm = nn.LSTM(input_size=model_dim, hidden_size=model_dim, num_layers=num_layers,
-                            batch_first=True, bidirectional=False, dropout=dropout)
+        self.gru = nn.GRU(input_size=model_dim, hidden_size=model_dim, num_layers=num_layers,
+                          batch_first=True, bidirectional=False, dropout=dropout)
         self.cross_attn_layer = CrossAttentionLayer(model_dim, num_heads)
-
-        self.pooling = nn.AdaptiveAvgPool1d(1)
         self.classifier = nn.Linear(model_dim, num_classes)
 
     def forward(self, src, src_mask, graph, graph_feat):
         src = self.embedding(src)
         graph_feat = self.gat_layer(graph, graph_feat)
-        lstm_out, _ = self.lstm(src)
-        src = self.cross_attn_layer(lstm_out, graph_feat)
-
-        # Apply global average pooling
-        src = src.permute(0, 2, 1)  # Change shape to (batch_size, model_dim, seq_len)
-        pooled_output = self.pooling(src).squeeze(-1)  # Change shape to (batch_size, model_dim)
-
-        # Final classification
-        output = self.classifier(pooled_output)
-
+        gru_out, _ = self.gru(src)
+        src = self.cross_attn_layer(gru_out, graph_feat)
+        output = self.classifier(src)
         return output
 
-class GraphLSTMContractModel():
-    def __init__(self, input_dim, model_dim, class_weight, num_classes=2, num_heads=2, num_layer=6):
-        self.model = CustomGraphLSTM(input_dim=input_dim, model_dim=model_dim, num_classes=num_classes,
+class GraphGRUModel():
+    def __init__(self, input_dim, model_dim, class_weight, num_classes=2, num_heads=2, num_layer=1):
+        self.model = CustomGraphGRU(input_dim=input_dim, model_dim=model_dim, num_classes=num_classes,
                                        num_heads=num_heads, num_layers=num_layer).to(device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=LR)
-
-        # self.criterion = nn.CrossEntropyLoss(weight=torch.tensor(class_weight).to(device), ignore_index=-1)
+        # self.criterion = nn.CrossEntropyLoss(ignore_index=-1)
         self.criterion = FocalLoss(alpha=0.6, gamma=2, reduction='mean', ignore_index=-1)
 
     def train(self, num_epochs, dataloader, test_dataloader):
@@ -148,7 +124,6 @@ class GraphLSTMContractModel():
             epoch_loss = 0
             self.model.train()
             for batch_idx, (contracts, vectors, labels, masks, flag_labels, graphs) in enumerate(dataloader):
-                np_vectors = vectors.numpy()
                 vectors = vectors.to(device)
                 labels = labels.to(device)
                 masks = masks.to(device)
@@ -158,14 +133,16 @@ class GraphLSTMContractModel():
 
                 self.optimizer.zero_grad()
                 output = self.model(vectors, masks, graphs, graph_feat)
+                output = output.view(-1, output.size(-1))
+                labels = labels.view(-1)
 
-                loss = self.criterion(output, flag_labels)
+                loss = self.criterion(output, labels)
                 loss.backward()
                 self.optimizer.step()
 
                 epoch_loss += loss.item()
 
-            # print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(dataloader)}")
+            print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(dataloader)}")
             if test_dataloader and epoch % 10 ==0:
                 val_loss = self.test(test_dataloader)
 
@@ -186,27 +163,29 @@ class GraphLSTMContractModel():
                 vectors = vectors.to(device)
                 labels = labels.to(device)
                 masks = masks.to(device)
-                flag_labels = flag_labels.to(device)
                 graphs = graphs.to(device)
                 graph_feat = graphs.ndata['feat'].to(device)
 
                 self.optimizer.zero_grad()
                 output = self.model(vectors, masks, graphs, graph_feat)
+                output = output.view(-1, output.size(-1))
+                labels = labels.view(-1)
 
-                loss = self.criterion(output, flag_labels)
+                loss = self.criterion(output, labels)
+
+                non_padding_mask = labels != -1
+                output = output[non_padding_mask]
+                labels = labels[non_padding_mask]
 
                 test_loss += loss.item()
-                # Get the index of the max log-probability
                 pred = output.detach().argmax(dim=1, keepdim=True)
-                correct += pred.eq(flag_labels.view_as(pred)).sum().item()
-                total += flag_labels.size(0)
+                correct += pred.eq(labels.view_as(pred)).sum().item()
+                total += labels.size(0)
 
-
-                # Calculate TP, FP, FN
-                true_positives += ((pred == 1) & (flag_labels.view_as(pred) == 1)).sum().item()
-                true_negatives += ((pred == 0) & (flag_labels.view_as(pred) == 0)).sum().item()
-                false_positives += ((pred == 1) & (flag_labels.view_as(pred) == 0)).sum().item()
-                false_negatives += ((pred == 0) & (flag_labels.view_as(pred) == 1)).sum().item()
+                true_positives += ((pred == 1) & (labels.view_as(pred) == 1)).sum().item()
+                true_negatives += ((pred == 0) & (labels.view_as(pred) == 0)).sum().item()
+                false_positives += ((pred == 1) & (labels.view_as(pred) == 0)).sum().item()
+                false_negatives += ((pred == 0) & (labels.view_as(pred) == 1)).sum().item()
 
         test_loss /= len(dataloader)
         accuracy = correct / total

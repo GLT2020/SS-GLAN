@@ -1,0 +1,143 @@
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.nn import functional as F
+from datetime import datetime
+import torch.optim.lr_scheduler as lr_scheduler
+
+from parser1 import parameter_parser
+args = parameter_parser()
+use_cuda = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+device = torch.device(use_cuda)
+
+LR = 0.00001
+class SingleTransformer(nn.Module):
+    def __init__(self, input_dim, model_dim, num_heads, num_layers, num_classes, dropout=0.1):
+        super(SingleTransformer, self).__init__()
+        self.embedding = nn.Linear(input_dim, model_dim)
+        self.transformer = nn.Transformer(
+            d_model=model_dim,
+            nhead=num_heads,
+            num_encoder_layers=num_layers,
+            num_decoder_layers=num_layers,
+            dropout=dropout,
+            batch_first=True
+        )
+
+        self.classifier = nn.Linear(model_dim, num_classes)
+        self.softmax = nn.LogSoftmax(dim=-1)
+
+    def forward(self, src, src_mask):
+        src = self.embedding(src)
+
+        # src_mask = src_mask.unsqueeze(1).expand(-1, src.size(1), -1)
+        # src_mask = (src_mask == 0)
+
+        # memory = self.transformer(src, src, src_mask=src_mask)
+        memory = self.transformer(src, src, src_key_padding_mask=~src_mask.bool())
+
+        output = self.classifier(memory)
+        # return self.softmax(output)
+        return output
+
+
+class SingleTransformerModel():
+    def __init__(self, input_dim, model_dim, class_weight,num_classes=2, num_heads=8, num_layer=6):
+        self.model = SingleTransformer(input_dim=input_dim, model_dim=model_dim, num_classes=num_classes,
+                                       num_heads=num_heads, num_layers=num_layer).to(device)
+
+        self.optimizer = optim.Adam(self.model.parameters(), lr=LR)
+        self.criterion = nn.CrossEntropyLoss(weight=torch.tensor(class_weight).to(device), ignore_index=-1)
+        # self.scheduler = lr_scheduler.MultiStepLR(self.optimizer, [100,150,200,250], gamma=0.1)  # dynamic adjustment lr
+        # self.criterion = nn.BCEWithLogitsLoss(torch.tensor([ 0.1 , 0.9 ]))
+
+    def train(self, num_epochs, dataloader, test_dataloader):
+        self.model.train()
+        date = datetime.today()
+        date_time = date.strftime('%m-%d-%H-%M')
+
+        for epoch in range(num_epochs):
+            epoch_loss = 0
+            for batch_idx, (contracts, vectors, labels, masks, flag_labels) in enumerate(dataloader):
+                vectors = vectors.to(device)
+                labels = labels.to(device)
+                masks = masks.to(device)
+                flag_labels = flag_labels.to(device)
+
+                self.optimizer.zero_grad()
+                output = self.model(vectors, masks)
+
+                # Flatten the output and labels for loss calculation
+                output = output.view(-1, output.size(-1))
+                labels = labels.view(-1)
+
+                loss = self.criterion(output, labels)
+                loss.backward()
+                self.optimizer.step()
+                # self.scheduler.step()  # 调整lr
+
+                epoch_loss += loss.item()
+
+            print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(dataloader)}")
+            if test_dataloader and epoch % 10 ==0 :
+                val_loss = self.test(test_dataloader)
+        # torch.save(self.model, f'./model/pth/{args.type}/{args.data_type}_{args.model}_{args.model_dim}_{args.epochs}_{date_time}.pth')
+
+    def test(self, dataloader):
+        self.model.eval()
+        test_loss = 0
+        correct = 0
+        total = 0
+        true_positives = 0
+        true_negatives = 0
+        false_positives = 0
+        false_negatives = 0
+
+        for batch_idx, (contracts, vectors, labels, masks, flag_labels) in enumerate(dataloader):
+            vectors = vectors.to(device)
+            labels = labels.to(device)
+            masks = masks.to(device)
+            flag_labels = flag_labels.to(device)
+
+            self.optimizer.zero_grad()
+            output = self.model(vectors, masks)
+
+            # Flatten the output and labels for loss calculation
+            output = output.view(-1, output.size(-1))
+            labels = labels.view(-1)
+
+            loss = self.criterion(output, labels)
+
+            # Remove padding elements
+            non_padding_mask = labels != -1
+            output = output[non_padding_mask]
+            labels = labels[non_padding_mask]
+
+            test_loss += loss.item()
+            # Get the index of the max log-probability
+            pred = output.detach().argmax(dim=1, keepdim=True)
+            correct += pred.eq(labels.view_as(pred)).sum().item()
+            total += labels.size(0)
+
+            pred_np = np.array(pred.cpu())
+            lables_np = np.array(labels.cpu())
+
+            # Calculate TP, FP, FN
+            true_positives += ((pred == 1) & (labels.view_as(pred) == 1)).sum().item()
+            true_negatives += ((pred == 0) & (labels.view_as(pred) == 0)).sum().item()
+            false_positives += ((pred == 1) & (labels.view_as(pred) == 0)).sum().item()
+            false_negatives += ((pred == 0) & (labels.view_as(pred) == 1)).sum().item()
+
+        test_loss /= len(dataloader)
+        accuracy = correct / total
+
+        recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
+        precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
+        f1_score = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+
+        # print(
+        #     f"total:{total}; correct:{correct}; tp:{true_positives}; tn:{true_negatives} ;fp:{false_positives}; fn:{false_negatives}")
+        # print(f"Test set: Average loss: {test_loss:.4f}, Accuracy: {correct}/{total} ({100. * accuracy:.2f}%)")
+        print(f"Precision: {precision:.4f}, Recall: {recall:.4f}, F1-score: {f1_score:.4f}")
+        return (true_positives, false_positives, true_negatives, false_negatives, accuracy, precision, recall, f1_score, test_loss)
