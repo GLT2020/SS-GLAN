@@ -169,6 +169,8 @@ class GraphLSTMContractModel():
             if test_dataloader and epoch % 10 ==0:
                 val_loss = self.test(test_dataloader)
 
+        torch.save(self.model.state_dict(),
+                   f'./model/pth/{args.type}/{args.data_type}_{args.model}_{args.model_dim}_{args.epochs}_{args.pca}.pth')
 
     def test(self, dataloader):
         self.model.eval()

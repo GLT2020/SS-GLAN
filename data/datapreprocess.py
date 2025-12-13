@@ -2,7 +2,7 @@ import json
 import os
 import re
 
-# access_control,arithmetic 已经处理好了
+
 # TODO: change type!
 type = {
     # 'access_control': 57,
@@ -56,7 +56,7 @@ def get_buggy_curated_json():
         write_vulnerabilities_json_files(list_buggy_curated_json, write_path)
 
 
-# 有的json对不上数，需要找出来是哪个合约
+
 def check_buggy_curated_json(type_key: str):
     list_vulnerabilities_json_files = [
         # './solidifi_buggy_contracts/' + type_key + '/vulnerabilities.json',
@@ -77,7 +77,7 @@ def check_buggy_curated_json(type_key: str):
 
     print("json文件个数：", len(data_vul_name))
 
-    # 查看是否是有多的
+
     for sol_item in list_sol_files:
         if sol_item not in data_vul_name:
             print("多出的合约名：", sol_item)
@@ -279,15 +279,15 @@ def preprocess_all_file():
 
 if __name__ == '__main__':
     # 制作所有bug文件的json
-    # get_buggy_curated_json()
+    get_buggy_curated_json()
     # 检查生成的bug文件json
-    # check_buggy_curated_json('denial_of_service')
+    check_buggy_curated_json('denial_of_service')
 
     # 生成无bug和有bug文件的总json, 所有类别的all.json文件已经生成
-    # get_all_json()
+    get_all_json()
 
     # 将all.json中对应空行的标签删去
-    # del_all_json_label_with_blank()
+    del_all_json_label_with_blank()
 
     # 预处理合约文件，将注释和空行去除，同时修改漏洞行标签
     preprocess_all_file()

@@ -159,7 +159,7 @@ def Split_dataset_type(types_file, labels_file ):
 
 
 
-def Split_dataset_graphvector(vectors_file, labels_file):
+def Split_dataset_graphvector(type,vectors_file, labels_file):
     # 加载向量和标签
     with open(vectors_file, 'r') as f:
         vectors = json.load(f)
@@ -184,7 +184,7 @@ def Split_dataset_graphvector(vectors_file, labels_file):
         flag_labels = 1 if len(labels) > 0 else 0
 
         # 读取 gpickle 文件并转换为 NetworkX 图
-        nx_graph = nx.read_gpickle(f'{ROOT}/{args.type}/{GRAPHPath}/{contract_name}.gpickle')
+        nx_graph = nx.read_gpickle(f'{ROOT}/{type}/{GRAPHPath}/{contract_name}.gpickle')
 
         # 将 NetworkX 图转换为 DGL 图
         dgl_graph = dgl.from_networkx(nx_graph)
@@ -223,7 +223,7 @@ def Split_dataset_graphvector(vectors_file, labels_file):
     return contracts_with_vulnerabilities, contracts_without_vulnerabilities
 
 
-def Split_dataset_graphtype(types_file, labels_file):
+def Split_dataset_graphtype(type,types_file, labels_file):
     # 加载向量和标签
     with open(labels_file, 'r') as f:
         raw_labels = json.load(f)
@@ -250,7 +250,7 @@ def Split_dataset_graphtype(types_file, labels_file):
         flag_labels = 1 if len(labels) > 0 else 0
 
         # 读取 gpickle 文件并转换为 NetworkX 图
-        nx_graph = nx.read_gpickle(f'{ROOT}/{args.type}/{GRAPHPath}/{contract_name}.gpickle')
+        nx_graph = nx.read_gpickle(f'{ROOT}/{type}/{GRAPHPath}/{contract_name}.gpickle')
 
         # 将 NetworkX 图转换为 DGL 图
         dgl_graph = dgl.from_networkx(nx_graph)
@@ -289,7 +289,7 @@ def Split_dataset_graphtype(types_file, labels_file):
     return contracts_with_vulnerabilities, contracts_without_vulnerabilities
 
 
-def Split_dataset_graphvectortype(vectors_file, labels_file, types_file):
+def Split_dataset_graphvectortype(type,vectors_file, labels_file, types_file):
     # 加载向量和标签
     with open(vectors_file, 'r') as f:
         vectors = json.load(f)
@@ -316,7 +316,7 @@ def Split_dataset_graphvectortype(vectors_file, labels_file, types_file):
         flag_labels = 1 if len(labels) > 0 else 0
 
         # 读取 gpickle 文件并转换为 NetworkX 图
-        nx_graph = nx.read_gpickle(f'{ROOT}/{args.type}/{GRAPHPath}/{contract_name}.gpickle')
+        nx_graph = nx.read_gpickle(f'{ROOT}/{type}/{GRAPHPath}/{contract_name}.gpickle')
 
         # 将 NetworkX 图转换为 DGL 图
         dgl_graph = dgl.from_networkx(nx_graph)
@@ -354,7 +354,7 @@ def Split_dataset_graphvectortype(vectors_file, labels_file, types_file):
 
     return contracts_with_vulnerabilities, contracts_without_vulnerabilities
 
-def Split_dataset_graphvectortype_pca(vectors_file, labels_file, types_file):
+def Split_dataset_graphvectortype_pca(type, vectors_file, labels_file, types_file):
     # 加载向量和标签
     with open(vectors_file, 'r') as f:
         vectors = json.load(f)
@@ -384,7 +384,7 @@ def Split_dataset_graphvectortype_pca(vectors_file, labels_file, types_file):
         flag_labels = 1 if len(labels) > 0 else 0
 
         # 读取 gpickle 文件并转换为 NetworkX 图
-        nx_graph = nx.read_gpickle(f'{ROOT}/{args.type}/{GRAPHPath}/{contract_name}.gpickle')
+        nx_graph = nx.read_gpickle(f'{ROOT}/{type}/{GRAPHPath}/{contract_name}.gpickle')
 
         # 将 NetworkX 图转换为 DGL 图
         dgl_graph = dgl.from_networkx(nx_graph)
@@ -423,7 +423,7 @@ def Split_dataset_graphvectortype_pca(vectors_file, labels_file, types_file):
     return contracts_with_vulnerabilities, contracts_without_vulnerabilities
 
 # 将vector和type特征相加融合。即最终特征维度为300
-def Split_dataset_graphvectortype_pca_add(vectors_file, labels_file, types_file):
+def Split_dataset_graphvectortype_pca_add(type,vectors_file, labels_file, types_file):
     # 加载向量和标签
     with open(vectors_file, 'r') as f:
         vectors = json.load(f)
@@ -454,7 +454,7 @@ def Split_dataset_graphvectortype_pca_add(vectors_file, labels_file, types_file)
         flag_labels = 1 if len(labels) > 0 else 0
 
         # 读取 gpickle 文件并转换为 NetworkX 图
-        nx_graph = nx.read_gpickle(f'{ROOT}/{args.type}/{GRAPHPath}/{contract_name}.gpickle')
+        nx_graph = nx.read_gpickle(f'{ROOT}/{type}/{GRAPHPath}/{contract_name}.gpickle')
 
         # 将 NetworkX 图转换为 DGL 图
         dgl_graph = dgl.from_networkx(nx_graph)

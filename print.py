@@ -66,33 +66,26 @@ if __name__ == '__main__':
     ]
 
     model_types = [
-                  # 'transformer',
-                  # 'transformer_contract', 'transformerencoder_contract',
-                    'transformerencoder',
-                  #   'gat_transformerencoder',
-                    # 'gcn_transformerencoder',
-                  # 'gcn',
-                  # 'gat',
-                  #   'gat_lstm',
-                  #   'lstm'
+                    'gat_lstm',
                   ]
     # file = './result/access_control_vector_transformerencoder_640_300.json'
 
     DTs = [
-        # 'vector', 'type',
-        'vectortype',
-        # 'graph_vector', 'graph_type',
-        # 'graph_vectortype'
+        # 'vector',
+        # 'type',
+        # 'vectortype',
+        # 'graph_vector', 
+        # 'graph_type',
+        'graph_vectortype'
     ]
     # DT = 'vectortype'
     # DT = 'graph_vectortype'
 
     PCA = 'True'
     # PCA = 'False'
-    # PCA = 'add'
 
-    CONTRACT = True
-    # CONTRACT = False
+    # CONTRACT = True
+    CONTRACT = False
 
     EPOCH = 100
 
@@ -100,9 +93,11 @@ if __name__ == '__main__':
         for key in model_types:
             for DT in DTs:
                 if CONTRACT == True:
-                    file = f'./print_result/{type}/{DT}_{key}_contract_640_{EPOCH}_{PCA}.json'
+                    file = f'./print_result/{type}/{DT}_{key}_contract_600_{EPOCH}_{PCA}.json'
+
                 else:
-                    file = f'./print_result/{type}/{DT}_{key}_640_{EPOCH}_{PCA}.json'
+                    file = f'./print_result/{type}/{DT}_{key}_600_{EPOCH}_{PCA}.json'
+
                 print(f'************************************************{type}************************************************')
                 print(f'file:{file}')
                 print(f'==================={key}====================')

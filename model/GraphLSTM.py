@@ -18,6 +18,7 @@ LR = 0.00001
 # LR = 0.0001
 
 
+
 class FocalLoss(nn.Module):
     def __init__(self, alpha=1, gamma=2, reduction='mean', ignore_index=-1):
         super(FocalLoss, self).__init__()
@@ -153,11 +154,12 @@ class GraphLSTMModel():
 
                 epoch_loss += loss.item()
 
-            # print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(dataloader)}")
+            print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(dataloader)}")
             if test_dataloader and epoch % 10 ==0:
                 val_loss = self.test(test_dataloader)
                 # val_loss = self.test(dataloader)
 
+        torch.save(self.model.state_dict(), f'./model/pth/{args.type}/{args.data_type}_{args.model}_{args.model_dim}_{args.epochs}_{args.pca}.pth')
 
     def test(self, dataloader):
         self.model.eval()
